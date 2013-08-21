@@ -11,6 +11,12 @@
 
 #import "NSString+HTMLEntities.h"
 
+#if TARGET_OS_IPHONE
+    #define RZFONT UIFont
+#else
+    #define RZFONT NSFont
+#endif
+
 NSString* const kRZHTMLStringUtilsRegularFont   = @"RegularFont";
 NSString* const kRZHTMLStringUtilsBoldFont      = @"BoldFont";
 NSString* const kRZHTMLStringUtilsItalicFont    = @"ItalicFont";
@@ -127,20 +133,24 @@ NSString* const kRZHTMLStringUtilsItalicFont    = @"ItalicFont";
     
     // Get fonts
     
-    UIFont *regularFont = [fontDict objectForKey:kRZHTMLStringUtilsRegularFont];
-    UIFont *boldFont = [fontDict objectForKey:kRZHTMLStringUtilsBoldFont];
-    UIFont *italicFont = [fontDict objectForKey:kRZHTMLStringUtilsItalicFont];
+    RZFONT *regularFont = [fontDict objectForKey:kRZHTMLStringUtilsRegularFont];
+    RZFONT *boldFont = [fontDict objectForKey:kRZHTMLStringUtilsBoldFont];
+    RZFONT *italicFont = [fontDict objectForKey:kRZHTMLStringUtilsItalicFont];
     
     if (regularFont == nil){
-        regularFont = [UIFont systemFontOfSize:14];
+        regularFont = [RZFONT systemFontOfSize:14];
     }
     
     if (boldFont == nil){
-        boldFont = [UIFont boldSystemFontOfSize:14];
+        boldFont = [RZFONT boldSystemFontOfSize:14];
     }
     
     if (italicFont == nil){
-        italicFont = [UIFont italicSystemFontOfSize:14];
+#if TARGET_OS_IPHONE
+        italicFont = [RZFONT italicSystemFontOfSize:14];
+#else
+        italicFont = regularFont;
+#endif
     }
 
     // Create string

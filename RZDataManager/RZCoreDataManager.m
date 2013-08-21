@@ -637,7 +637,11 @@ NSString * const kRZCoreDataManagerDidResetDatabaseNotification = @"RZCoreDataMa
     if (nil == _managedObjectModelName)
     {
         NSDictionary *info = [[NSBundle mainBundle] infoDictionary];
+#if TARGET_OS_IPHONE
         NSMutableString *productName = [[info objectForKey:@"CFBundleDisplayName"] mutableCopy];
+#else
+        NSMutableString *productName = [[info objectForKey:@"CFBundleName"] mutableCopy];
+#endif
         [productName replaceOccurrencesOfString:@" " withString:@"_" options:0 range:NSMakeRange(0, productName.length)];
         [productName replaceOccurrencesOfString:@"-" withString:@"_" options:0 range:NSMakeRange(0, productName.length)];
         _managedObjectModelName = [NSString stringWithString:productName];
@@ -656,6 +660,8 @@ NSString * const kRZCoreDataManagerDidResetDatabaseNotification = @"RZCoreDataMa
     return _persistentStoreType;
 }
 
+
+//TODO: should be a different URL for Mac (not user's documents directory)
 - (NSURL*)persistentStoreURL
 {
     if (nil == _persistentStoreURL)
