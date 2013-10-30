@@ -281,9 +281,6 @@ forRelationshipWithMapping:(RZDataManagerModelObjectRelationshipMapping *)relati
                              usingBlock:(RZDataManagerOperationBlock)importBlock
                              completion:(RZDataManagerBackgroundOperationCompletionBlock)completionBlock;
 {
-    // only setup new moc if on main thread, otherwise assume we are on a background thread with associated moc
-
-
     void (^internalImportBlock)(BOOL, NSManagedObjectContext *) = ^(BOOL fromMainThread, NSManagedObjectContext *privateMoc)
     {
 
@@ -319,14 +316,13 @@ forRelationshipWithMapping:(RZDataManagerModelObjectRelationshipMapping *)relati
         }
     };
 
+    // only setup new moc if on main thread, otherwise assume we are on a background thread with associated moc
     if ([NSThread isMainThread])
     {
-
         if (synchronously)
         {
             dispatch_async(s_RZCoreDataManagerPrivateImportQueue, ^
             {
-
                 NSManagedObjectContext *privateMoc = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSConfinementConcurrencyType];
                 privateMoc.parentContext = self.managedObjectContext;
                 privateMoc.undoManager   = nil; // should be nil already, but let's make it explicit
@@ -347,7 +343,6 @@ forRelationshipWithMapping:(RZDataManagerModelObjectRelationshipMapping *)relati
 
             [privateMoc performBlock:^
             {
-
                 if (![NSThread isMainThread])
                 {
                     [[[NSThread currentThread] threadDictionary] setObject:privateMoc forKey:kRZCoreDataManagerConfinedMocKey];
@@ -363,7 +358,6 @@ forRelationshipWithMapping:(RZDataManagerModelObjectRelationshipMapping *)relati
         NSManagedObjectContext *moc = self.currentMoc;
         if (moc)
         {
-
             if (moc.concurrencyType == NSPrivateQueueConcurrencyType)
             {
                 // we can perform this and wait safely on a bg thread
@@ -1136,7 +1130,7 @@ forRelationshipWithMapping:(RZDataManagerModelObjectRelationshipMapping *)relati
 - (void)resolveDuplicateInsertedObjectsForEntityName:(NSString *)entityName modelIdKey:(NSString *)modelIdKey
 {
     // If we don't have any inserted objects, nothing to do here.
-    NSSet *insertedObjects = [self.managedObjectContext insertedObjects];
+    NSSet *insertedObjects = [[self.managedObjectContext insertedObjects] filteredSetUsingPredicate:[NSPredicate predicateWithFormat:@"entity.name == %@", entityName]];
     if (insertedObjects.count > 0)
     {
         // Get dictionary of all unique ids on inserted objects -> objects
@@ -1154,6 +1148,7 @@ forRelationshipWithMapping:(RZDataManagerModelObjectRelationshipMapping *)relati
         if (duplicates.count > 0 && err == nil)
         {
             // ruh-roh
+            // TODO: check merge strategy
         }
         
     }

@@ -937,6 +937,49 @@
     }
 }
 
+- (void)test_DuplicateResolution
+{
+    // Object duplication can occur in rare race conditions, replicated below.
+    
+    __block BOOL finished = NO;
+
+    [self.dataManager performDataOperationInBackgroundUsingBlock:^(id context) {
+       
+        NSManagedObjectContext *bgMoc = context;
+        
+        // create object on main moc
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            DMEntry *mainEntry = [self.dataManager objectOfType:@"DMEntry" withValue:@"9999" forKeyPath:@"uid" createNew:YES];
+            mainEntry.name = @"Main";
+            [self.dataManager saveData:YES];
+        });
+        
+        // create object in background moc
+        DMEntry *bgEntry = [NSEntityDescription insertNewObjectForEntityForName:@"DMEntry" inManagedObjectContext:bgMoc];
+        bgEntry.uid = @"9999";
+        bgEntry.name = @"Dupe";
+
+    } completion:^(NSError *error) {
+       
+        // verify there's a duplicate
+        NSFetchRequest *df = [NSFetchRequest fetchRequestWithEntityName:@"DMEntry"];
+        df.predicate = [NSPredicate predicateWithFormat:@"uid == %@", @"9999"];
+        
+        NSArray *dupeResults = [self.dataManager.managedObjectContext executeFetchRequest:df error:NULL];
+        STAssertTrue(dupeResults.count == 2, @"Didn't create a dupe");
+        
+        // call privte selector
+        [self.dataManager performSelector:@selector(resolveDuplicateInsertedObjectsForEntityName:modelIdKey:) withObject:@"DMEntry" withObject:@"uid"];
+        
+        
+    }];
+
+    while (!finished){
+        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+
+}
+
 #pragma mark - Dictionary conversion test
 
 - (void)test300ConvertToDictionary
