@@ -64,6 +64,9 @@ NSString *const RZCoreDataManagerDidResetDatabaseNotification   = @"RZCoreDataMa
                            objectMapping:(RZDataManagerModelObjectMapping *)objectMapping
                                  andData:(id)dictionaryOrArray;
 
+- (void)resolveDuplicateInsertedObjectsForEntityName:(NSString *)entityName
+                                          modelIdKey:(NSString *)modelIdKey;
+
 - (void)saveContext:(BOOL)wait;
 
 - (NSURL *)applicationDocumentsDirectory;
@@ -152,6 +155,10 @@ NSString *const RZCoreDataManagerDidResetDatabaseNotification   = @"RZCoreDataMa
     completion:^(NSError *error)
     {
 
+        // TODO: optionally do this, not always
+        [self resolveDuplicateInsertedObjectsForEntityName:[self entityNameForClassOrEntityNamed:className]
+                                                modelIdKey:modelIdKey];
+        
         if ([[options objectForKey:RZDataManagerSaveAfterImportOptionKey] boolValue])
         {
             [self saveContext:YES];
@@ -159,7 +166,6 @@ NSString *const RZCoreDataManagerDidResetDatabaseNotification   = @"RZCoreDataMa
 
         if (completion)
         {
-
             // Need to fetch object from main thread moc for completion block
             id result = nil;
             if (error == nil && [[options objectForKey:RZDataManagerReturnObjectsFromImportOptionKey] boolValue])
@@ -233,7 +239,6 @@ forRelationshipWithMapping:(RZDataManagerModelObjectRelationshipMapping *)relati
 
         if (completion)
         {
-
             // Need to fetch object from main thread moc for completion block
             id result = nil;
             if (error == nil && [[options objectForKey:RZDataManagerReturnObjectsFromImportOptionKey] boolValue])
@@ -1126,6 +1131,32 @@ forRelationshipWithMapping:(RZDataManagerModelObjectRelationshipMapping *)relati
     }
 
     return _persistentStoreURL;
+}
+
+- (void)resolveDuplicateInsertedObjectsForEntityName:(NSString *)entityName modelIdKey:(NSString *)modelIdKey
+{
+    // If we don't have any inserted objects, nothing to do here.
+    NSSet *insertedObjects = [self.managedObjectContext insertedObjects];
+    if (insertedObjects.count > 0)
+    {
+        // Get dictionary of all unique ids on inserted objects -> objects
+        NSArray *allObjs = [insertedObjects allObjects];
+        NSDictionary *objsByUid = [NSDictionary dictionaryWithObjects:allObjs forKeys:[allObjs valueForKey:modelIdKey]];
+
+        // Fetch any objects that exist in the moc that have the same uid but aren't in the inserted object set
+        NSPredicate *dupPred = [NSPredicate predicateWithFormat:@"!(SELF IN %@) && (%K IN %@)", insertedObjects, modelIdKey, [objsByUid allKeys]];
+        
+        NSFetchRequest *dupFetch = [NSFetchRequest fetchRequestWithEntityName:entityName];
+        dupFetch.predicate = dupPred;
+        
+        NSError *err = nil;
+        NSArray *duplicates = [self.managedObjectContext executeFetchRequest:dupFetch error:&err];
+        if (duplicates.count > 0 && err == nil)
+        {
+            // ruh-roh
+        }
+        
+    }
 }
 
 // Adapted from Core Data (Second Edition) By Marcus Zarra http://pragprog.com/book/mzcd2/core-data
