@@ -971,7 +971,14 @@
         // call privte selector
         [self.dataManager performSelector:@selector(resolveDuplicateInsertedObjectsForEntityName:modelIdKey:) withObject:@"DMEntry" withObject:@"uid"];
         
+        // save again
+        [self.dataManager saveData:YES];
         
+        // fetch again
+        dupeResults = [self.dataManager.managedObjectContext executeFetchRequest:df error:NULL];
+        STAssertTrue(dupeResults.count == 1, @"Duplicate wasn't destroyed");
+        
+        finished = YES;
     }];
 
     while (!finished){

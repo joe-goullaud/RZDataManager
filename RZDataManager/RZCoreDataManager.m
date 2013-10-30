@@ -154,8 +154,6 @@ NSString *const RZCoreDataManagerDidResetDatabaseNotification   = @"RZCoreDataMa
     }
     completion:^(NSError *error)
     {
-
-        // TODO: optionally do this, not always
         [self resolveDuplicateInsertedObjectsForEntityName:[self entityNameForClassOrEntityNamed:className]
                                                 modelIdKey:modelIdKey];
         
@@ -232,6 +230,9 @@ forRelationshipWithMapping:(RZDataManagerModelObjectRelationshipMapping *)relati
     completion:^(NSError *error)
     {
 
+        [self resolveDuplicateInsertedObjectsForEntityName:[self entityNameForClassOrEntityNamed:objectClassName]
+                                                modelIdKey:modelIdKey];
+        
         if ([[options objectForKey:RZDataManagerSaveAfterImportOptionKey] boolValue])
         {
             [self saveContext:YES];
@@ -1129,7 +1130,7 @@ forRelationshipWithMapping:(RZDataManagerModelObjectRelationshipMapping *)relati
 
 - (void)resolveDuplicateInsertedObjectsForEntityName:(NSString *)entityName modelIdKey:(NSString *)modelIdKey
 {
-    // If we don't have any inserted objects, nothing to do here.
+    // If we don't have any pending inserted objects of this entity type, there's nothing to do here.
     NSSet *insertedObjects = [[self.managedObjectContext insertedObjects] filteredSetUsingPredicate:[NSPredicate predicateWithFormat:@"entity.name == %@", entityName]];
     if (insertedObjects.count > 0)
     {
@@ -1137,7 +1138,7 @@ forRelationshipWithMapping:(RZDataManagerModelObjectRelationshipMapping *)relati
         NSArray *allObjs = [insertedObjects allObjects];
         NSDictionary *objsByUid = [NSDictionary dictionaryWithObjects:allObjs forKeys:[allObjs valueForKey:modelIdKey]];
 
-        // Fetch any objects that exist in the moc that have the same uid but aren't in the inserted object set
+        // Fetch any objects that exist in the moc that have one of the same uid but aren't in the inserted object set
         NSPredicate *dupPred = [NSPredicate predicateWithFormat:@"!(SELF IN %@) && (%K IN %@)", insertedObjects, modelIdKey, [objsByUid allKeys]];
         
         NSFetchRequest *dupFetch = [NSFetchRequest fetchRequestWithEntityName:entityName];
@@ -1147,8 +1148,13 @@ forRelationshipWithMapping:(RZDataManagerModelObjectRelationshipMapping *)relati
         NSArray *duplicates = [self.managedObjectContext executeFetchRequest:dupFetch error:&err];
         if (duplicates.count > 0 && err == nil)
         {
-            // ruh-roh
-            // TODO: check merge strategy
+            // ruh-roh - get rid of that duplicate
+            [duplicates enumerateObjectsUsingBlock:^(id dupeObj, NSUInteger idx, BOOL *stop) {
+               
+                id newObj = [objsByUid objectForKey:[dupeObj valueForKey:modelIdKey]];
+                [self.managedObjectContext deleteObject:newObj];
+            }];
+            
         }
         
     }
